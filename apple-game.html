@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apple Catcher Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        #gameContainer {
+            text-align: center;
+        }
+
+        #gameCanvas {
+            border: 4px solid #fff;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            background: #87CEEB;
+        }
+
+        #scoreBoard {
+            margin-top: 20px;
+            color: white;
+            font-size: 24px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        #gameOver {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        #gameOver h2 {
+            color: #e74c3c;
+            margin-bottom: 15px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #764ba2;
+        }
+
+        .info {
+            color: white;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="600" height="500"></canvas>
+        <div id="scoreBoard">
+            <div>Score: <span id="score">0</span></div>
+            <div>Lives: <span id="lives">3</span></div>
+        </div>
+        <div class="info">Use Arrow Keys or Mouse to move the basket</div>
+
+        <div id="gameOver">
+            <h2>Game Over!</h2>
+            <p>Final Score: <span id="finalScore">0</span></p>
+            <button onclick="restartGame()">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let score = 0;
+        let lives = 3;
+        let gameRunning = true;
+        let animationId;
+
+        // Basket
+        const basket = {
+            x: canvas.width / 2 - 40,
+            y: canvas.height - 60,
+            width: 80,
+            height: 20,
+            speed: 7,
+            dx: 0
+        };
+
+        // Apples array
+        let apples = [];
+        let appleSpeed = 2;
+        let lastAppleTime = 0;
+        let appleInterval = 1000; // milliseconds
+
+        // Controls
+        const keys = {};
+
+        // Draw basket
+        function drawBasket() {
+            // Basket body
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(basket.x, basket.y, basket.width, basket.height);
+
+            // Basket rim
+            ctx.strokeStyle = '#654321';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(basket.x, basket.y, basket.width, basket.height);
+
+            // Basket weave pattern
+            ctx.strokeStyle = '#A0522D';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < basket.width; i += 10) {
+                ctx.beginPath();
+                ctx.moveTo(basket.x + i, basket.y);
+                ctx.lineTo(basket.x + i, basket.y + basket.height);
+                ctx.stroke();
+            }
+        }
+
+        // Draw apple
+        function drawApple(apple) {
+            // Apple body
+            ctx.fillStyle = apple.color || '#FF0000';
+            ctx.beginPath();
+            ctx.arc(apple.x, apple.y, apple.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Apple shine
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.beginPath();
+            ctx.arc(apple.x - apple.radius/3, apple.y - apple.radius/3, apple.radius/3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Stem
+            ctx.strokeStyle = '#8B4513';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(apple.x, apple.y - apple.radius);
+            ctx.lineTo(apple.x + 3, apple.y - apple.radius - 5);
+            ctx.stroke();
+
+            // Leaf
+            ctx.fillStyle = '#228B22';
+            ctx.beginPath();
+            ctx.ellipse(apple.x + 5, apple.y - apple.radius - 3, 4, 2, Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Create new apple
+        function createApple() {
+            const colors = ['#FF0000', '#FF4500', '#DC143C', '#FFD700'];
+            return {
+                x: Math.random() * (canvas.width - 40) + 20,
+                y: -20,
+                radius: 15,
+                speed: appleSpeed + Math.random() * 1,
+                color: colors[Math.floor(Math.random() * colors.length)]
+            };
+        }
+
+        // Update basket position
+        function updateBasket() {
+            basket.x += basket.dx;
+
+            // Boundary detection
+            if (basket.x < 0) basket.x = 0;
+            if (basket.x + basket.width > canvas.width) {
+                basket.x = canvas.width - basket.width;
+            }
+        }
+
+        // Update apples
+        function updateApples(timestamp) {
+            // Create new apple
+            if (timestamp - lastAppleTime > appleInterval) {
+                apples.push(createApple());
+                lastAppleTime = timestamp;
+            }
+
+            // Update apple positions
+            for (let i = apples.length - 1; i >= 0; i--) {
+                apples[i].y += apples[i].speed;
+
+                // Check if caught
+                if (apples[i].y + apples[i].radius >= basket.y &&
+                    apples[i].y - apples[i].radius <= basket.y + basket.height &&
+                    apples[i].x >= basket.x &&
+                    apples[i].x <= basket.x + basket.width) {
+                    apples.splice(i, 1);
+                    score += 10;
+                    document.getElementById('score').textContent = score;
+
+                    // Increase difficulty
+                    if (score % 100 === 0) {
+                        appleSpeed += 0.5;
+                        if (appleInterval > 400) appleInterval -= 50;
+                    }
+                }
+                // Check if missed
+                else if (apples[i].y - apples[i].radius > canvas.height) {
+                    apples.splice(i, 1);
+                    lives--;
+                    document.getElementById('lives').textContent = lives;
+
+                    if (lives <= 0) {
+                        endGame();
+                    }
+                }
+            }
+        }
+
+        // Clear canvas
+        function clear() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // Draw everything
+        function draw(timestamp) {
+            if (!gameRunning) return;
+
+            clear();
+            drawBasket();
+
+            apples.forEach(apple => drawApple(apple));
+
+            updateBasket();
+            updateApples(timestamp);
+
+            animationId = requestAnimationFrame(draw);
+        }
+
+        // End game
+        function endGame() {
+            gameRunning = false;
+            cancelAnimationFrame(animationId);
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+
+        // Restart game
+        function restartGame() {
+            score = 0;
+            lives = 3;
+            apples = [];
+            appleSpeed = 2;
+            appleInterval = 1000;
+            basket.x = canvas.width / 2 - 40;
+            gameRunning = true;
+
+            document.getElementById('score').textContent = score;
+            document.getElementById('lives').textContent = lives;
+            document.getElementById('gameOver').style.display = 'none';
+
+            requestAnimationFrame(draw);
+        }
+
+        // Keyboard controls
+        function keyDown(e) {
+            keys[e.key] = true;
+
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+                basket.dx = -basket.speed;
+            }
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+                basket.dx = basket.speed;
+            }
+        }
+
+        function keyUp(e) {
+            keys[e.key] = false;
+
+            if (!keys['ArrowLeft'] && !keys['a'] && !keys['A'] &&
+                !keys['ArrowRight'] && !keys['d'] && !keys['D']) {
+                basket.dx = 0;
+            }
+        }
+
+        // Mouse controls
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            basket.x = mouseX - basket.width / 2;
+
+            if (basket.x < 0) basket.x = 0;
+            if (basket.x + basket.width > canvas.width) {
+                basket.x = canvas.width - basket.width;
+            }
+        });
+
+        document.addEventListener('keydown', keyDown);
+        document.addEventListener('keyup', keyUp);
+
+        // Start game
+        requestAnimationFrame(draw);
+    </script>
+</body>
+</html>

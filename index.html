@@ -3,12 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Project</title>
+  <title>Cyberpunk FPS</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <h1>Hello, World!</h1>
-  <p>Edit this page to get started.</p>
+  <div id="ui">
+    <div id="crosshair"></div>
+    <div id="hud">
+      <div id="health-container">
+        <div id="health-bar"></div>
+        <span id="health-text">100</span>
+      </div>
+      <div id="ammo-container">
+        <span id="ammo-text">30 / 90</span>
+        <span id="weapon-name">PISTOL</span>
+      </div>
+      <div id="kill-counter">Kills: <span id="kills">0</span></div>
+    </div>
+    <div id="death-screen" class="hidden">
+      <h1>YOU DIED</h1>
+      <p>Kills: <span id="death-kills">0</span></p>
+      <button id="restart-btn">RESTART</button>
+    </div>
+    <div id="start-screen">
+      <h1>CYBERPUNK FPS</h1>
+      <p>Click to start</p>
+      <div class="controls">
+        <p>WASD - Move | Mouse - Look | Click - Shoot</p>
+        <p>R - Reload | 1-4 - Switch Weapons</p>
+      </div>
+    </div>
+  </div>
   <script type="module" src="/main.js"></script>
 </body>
 </html>

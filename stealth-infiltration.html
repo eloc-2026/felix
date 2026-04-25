@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stealth Infiltration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #gameContainer {
+            position: relative;
+            border: 3px solid #0f0;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+        #gameCanvas {
+            display: block;
+            background: #0a0a0a;
+        }
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            color: #0f0;
+            font-size: 14px;
+            pointer-events: none;
+        }
+        .stat-bar {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px;
+            margin-bottom: 5px;
+            border: 1px solid #0f0;
+        }
+        #shop {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 20, 0, 0.95);
+            border: 3px solid #0f0;
+            padding: 20px;
+            display: none;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .shop-item {
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #0f0;
+            cursor: pointer;
+            pointer-events: all;
+        }
+        .shop-item:hover {
+            background: rgba(0, 255, 0, 0.1);
+        }
+        .shop-item.owned {
+            opacity: 0.5;
+            cursor: default;
+        }
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 3px solid #f00;
+            padding: 30px;
+            font-size: 24px;
+            text-align: center;
+            display: none;
+        }
+        .btn {
+            background: #0a0a0a;
+            color: #0f0;
+            border: 2px solid #0f0;
+            padding: 10px 20px;
+            margin: 10px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            pointer-events: all;
+        }
+        .btn:hover {
+            background: rgba(0, 255, 0, 0.2);
+        }
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border: 1px solid #0f0;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="1000" height="700"></canvas>
+
+        <div id="ui">
+            <div class="stat-bar">
+                <span>HEALTH: <span id="health">100</span></span> |
+                <span>MONEY: $<span id="money">500</span></span> |
+                <span>WEAPON: <span id="weapon">FISTS</span></span> |
+                <span>ALERT: <span id="alert">NONE</span></span>
+            </div>
+        </div>
+
+        <div id="controls">
+            WASD: Move | MOUSE: Aim | CLICK: Attack | E: Shop/Objective | R: Reload
+        </div>
+
+        <div id="shop">
+            <h2>WEAPON SHOP</h2>
+            <div id="shopItems"></div>
+            <button class="btn" onclick="game.closeShop()">CLOSE (E)</button>
+        </div>
+
+        <div id="message">
+            <div id="messageText"></div>
+            <button class="btn" onclick="game.restart()">RESTART</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const game = {
+            player: {
+                x: 100,
+                y: 100,
+                width: 20,
+                height: 20,
+                speed: 3,
+                health: 100,
+                maxHealth: 100,
+                money: 500,
+                weapon: 'fists',
+                ammo: 0,
+                maxAmmo: 0,
+                angle: 0,
+                vx: 0,
+                vy: 0
+            },
+            weapons: {
+                fists: { name: 'FISTS', damage: 15, range: 30, cooldown: 500, ammo: Infinity, cost: 0, fireRate: 500 },
+                knife: { name: 'KNIFE', damage: 50, range: 40, cooldown: 400, ammo: Infinity, cost: 200, fireRate: 400 },
+                silencer: { name: 'SILENCED PISTOL', damage: 40, range: 300, cooldown: 600, ammo: 12, cost: 800, fireRate: 600, alertRadius: 100 },
+                pistol: { name: 'PISTOL', damage: 60, range: 400, cooldown: 500, ammo: 15, cost: 1000, fireRate: 500, alertRadius: 300 },
+                smg: { name: 'SMG', damage: 35, range: 350, cooldown: 150, ammo: 30, cost: 2000, fireRate: 150, alertRadius: 400 },
+                shotgun: { name: 'SHOTGUN', damage: 100, range: 200, cooldown: 1000, ammo: 8, cost: 1500, fireRate: 1000, alertRadius: 500 }
+            },
+            ownedWeapons: ['fists'],
+            guards: [],
+            walls: [],
+            loot: [],
+            bullets: [],
+            particles: [],
+            shops: [],
+            objective: null,
+            keys: {},
+            mouseX: 0,
+            mouseY: 0,
+            lastShot: 0,
+            alertLevel: 0,
+            gameOver: false,
+            shopOpen: false,
+            missionComplete: false,
+            score: 0
+        };
+
+        // Initialize level
+        function initLevel() {
+            // Building walls (outer perimeter)
+            game.walls = [
+                // Outer walls
+                {x: 50, y: 50, width: 900, height: 10},
+                {x: 50, y: 50, width: 10, height: 600},
+                {x: 950, y: 50, width: 10, height: 600},
+                {x: 50, y: 640, width: 900, height: 10},
+
+                // Interior rooms
+                {x: 300, y: 50, width: 10, height: 200},
+                {x: 300, y: 300, width: 10, height: 350},
+                {x: 650, y: 50, width: 10, height: 250},
+                {x: 650, y: 400, width: 10, height: 250},
+                {x: 300, y: 250, width: 200, height: 10},
+                {x: 550, y: 250, width: 110, height: 10},
+                {x: 300, y: 400, width: 150, height: 10},
+                {x: 500, y: 400, width: 160, height: 10},
+                {x: 450, y: 50, width: 100, height: 10},
+                {x: 800, y: 200, width: 150, height: 10}
+            ];
+
+            // Guards
+            game.guards = [
+                createGuard(400, 150, 'patrol', [{x: 400, y: 150}, {x: 600, y: 150}]),
+                createGuard(750, 350, 'patrol', [{x: 750, y: 350}, {x: 750, y: 550}]),
+                createGuard(500, 500, 'stationary'),
+                createGuard(200, 400, 'patrol', [{x: 200, y: 400}, {x: 200, y: 600}]),
+                createGuard(850, 100, 'patrol', [{x: 850, y: 100}, {x: 850, y: 150}, {x: 900, y: 150}, {x: 900, y: 100}])
+            ];
+
+            // Loot
+            game.loot = [
+                {x: 150, y: 150, amount: 100, collected: false},
+                {x: 800, y: 250, amount: 200, collected: false},
+                {x: 550, y: 500, amount: 300, collected: false},
+                {x: 380, y: 350, amount: 150, collected: false},
+                {x: 900, y: 600, amount: 250, collected: false}
+            ];
+
+            // Weapon shop
+            game.shops = [{x: 120, y: 580, width: 40, height: 40}];
+
+            // Objective (vault)
+            game.objective = {x: 880, y: 580, width: 50, height: 50, completed: false};
+        }
+
+        function createGuard(x, y, type, patrolPoints = []) {
+            return {
+                x, y,
+                width: 18,
+                height: 18,
+                speed: 1.5,
+                health: 100,
+                maxHealth: 100,
+                type,
+                patrolPoints,
+                currentPoint: 0,
+                angle: 0,
+                viewDistance: 200,
+                viewAngle: Math.PI / 3,
+                alertLevel: 0,
+                state: 'patrol', // patrol, alert, chase, investigate
+                investigatePoint: null,
+                lastSeenPlayer: null,
+                dead: false
+            };
+        }
+
+        // Input handling
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            game.mouseX = e.clientX - rect.left;
+            game.mouseY = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (!game.gameOver && !game.shopOpen) {
+                shoot();
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            game.keys[e.key.toLowerCase()] = true;
+
+            if (e.key.toLowerCase() === 'e') {
+                checkShopInteraction();
+                checkObjective();
+            }
+
+            if (e.key.toLowerCase() === 'r') {
+                reload();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            game.keys[e.key.toLowerCase()] = false;
+        });
+
+        function shoot() {
+            const now = Date.now();
+            const weapon = game.weapons[game.player.weapon];
+
+            if (now - game.lastShot < weapon.cooldown) return;
+            if (weapon.ammo !== Infinity && game.player.ammo <= 0) return;
+
+            game.lastShot = now;
+
+            if (weapon.ammo !== Infinity) {
+                game.player.ammo--;
+            }
+
+            // Calculate shot direction
+            const dx = game.mouseX - game.player.x;
+            const dy = game.mouseY - game.player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const dirX = dx / dist;
+            const dirY = dy / dist;
+
+            // Melee weapons
+            if (weapon.range < 100) {
+                // Check hit on guards
+                game.guards.forEach(guard => {
+                    if (guard.dead) return;
+                    const gDist = Math.sqrt((guard.x - game.player.x) ** 2 + (guard.y - game.player.y) ** 2);
+                    if (gDist < weapon.range) {
+                        guard.health -= weapon.damage;
+                        createParticles(guard.x, guard.y, '#f00', 8);
+                        if (guard.health <= 0) {
+                            guard.dead = true;
+                            game.score += 100;
+                        }
+                    }
+                });
+            } else {
+                // Ranged weapons - create bullet
+                game.bullets.push({
+                    x: game.player.x,
+                    y: game.player.y,
+                    vx: dirX * 15,
+                    vy: dirY * 15,
+                    damage: weapon.damage,
+                    range: weapon.range,
+                    traveled: 0,
+                    alertRadius: weapon.alertRadius || 0
+                });
+            }
+
+            // Alert nearby guards
+            if (weapon.alertRadius) {
+                game.guards.forEach(guard => {
+                    const dist = Math.sqrt((guard.x - game.player.x) ** 2 + (guard.y - game.player.y) ** 2);
+                    if (dist < weapon.alertRadius && !guard.dead) {
+                        guard.state = 'investigate';
+                        guard.investigatePoint = {x: game.player.x, y: game.player.y};
+                    }
+                });
+            }
+        }
+
+        function reload() {
+            const weapon = game.weapons[game.player.weapon];
+            if (weapon.ammo !== Infinity) {
+                game.player.ammo = weapon.ammo;
+                createParticles(game.player.x, game.player.y, '#0ff', 5);
+            }
+        }
+
+        function checkShopInteraction() {
+            game.shops.forEach(shop => {
+                const dist = Math.sqrt((game.player.x - shop.x - shop.width/2) ** 2 + (game.player.y - shop.y - shop.height/2) ** 2);
+                if (dist < 50) {
+                    if (game.shopOpen) {
+                        game.closeShop();
+                    } else {
+                        game.openShop();
+                    }
+                }
+            });
+        }
+
+        function checkObjective() {
+            if (game.objective.completed) return;
+
+            const dist = Math.sqrt((game.player.x - game.objective.x - game.objective.width/2) ** 2 + (game.player.y - game.objective.y - game.objective.height/2) ** 2);
+            if (dist < 60) {
+                game.objective.completed = true;
+                game.missionComplete = true;
+                game.score += 1000;
+                showMessage('MISSION COMPLETE!<br>VAULT SECURED<br>SCORE: ' + game.score, '#0f0');
+            }
+        }
+
+        game.openShop = function() {
+            game.shopOpen = true;
+            document.getElementById('shop').style.display = 'block';
+            updateShop();
+        };
+
+        game.closeShop = function() {
+            game.shopOpen = false;
+            document.getElementById('shop').style.display = 'none';
+        };
+
+        function updateShop() {
+            const container = document.getElementById('shopItems');
+            container.innerHTML = '';
+
+            Object.keys(game.weapons).forEach(key => {
+                const weapon = game.weapons[key];
+                if (key === 'fists') return;
+
+                const owned = game.ownedWeapons.includes(key);
+                const div = document.createElement('div');
+                div.className = 'shop-item' + (owned ? ' owned' : '');
+                div.innerHTML = `
+                    <strong>${weapon.name}</strong> - $${weapon.cost}<br>
+                    Damage: ${weapon.damage} | Range: ${weapon.range} | Ammo: ${weapon.ammo === Infinity ? 'Unlimited' : weapon.ammo}
+                    ${owned ? '<br>[OWNED]' : ''}
+                `;
+
+                if (!owned) {
+                    div.onclick = () => buyWeapon(key);
+                }
+
+                container.appendChild(div);
+            });
+        }
+
+        function buyWeapon(weaponKey) {
+            const weapon = game.weapons[weaponKey];
+            if (game.player.money >= weapon.cost) {
+                game.player.money -= weapon.cost;
+                game.ownedWeapons.push(weaponKey);
+                game.player.weapon = weaponKey;
+                game.player.ammo = weapon.ammo;
+                game.player.maxAmmo = weapon.ammo;
+                updateShop();
+            }
+        }
+
+        function update() {
+            if (game.gameOver || game.shopOpen || game.missionComplete) return;
+
+            // Player movement
+            game.player.vx = 0;
+            game.player.vy = 0;
+
+            if (game.keys['w']) game.player.vy -= game.player.speed;
+            if (game.keys['s']) game.player.vy += game.player.speed;
+            if (game.keys['a']) game.player.vx -= game.player.speed;
+            if (game.keys['d']) game.player.vx += game.player.speed;
+
+            // Player angle
+            const dx = game.mouseX - game.player.x;
+            const dy = game.mouseY - game.player.y;
+            game.player.angle = Math.atan2(dy, dx);
+
+            // Move player with collision
+            const newX = game.player.x + game.player.vx;
+            const newY = game.player.y + game.player.vy;
+
+            if (!checkWallCollision(newX, game.player.y, game.player.width, game.player.height)) {
+                game.player.x = newX;
+            }
+            if (!checkWallCollision(game.player.x, newY, game.player.width, game.player.height)) {
+                game.player.y = newY;
+            }
+
+            // Collect loot
+            game.loot.forEach(loot => {
+                if (loot.collected) return;
+                const dist = Math.sqrt((game.player.x - loot.x) ** 2 + (game.player.y - loot.y) ** 2);
+                if (dist < 30) {
+                    loot.collected = true;
+                    game.player.money += loot.amount;
+                    createParticles(loot.x, loot.y, '#ff0', 10);
+                }
+            });
+
+            // Update guards
+            game.guards.forEach(guard => {
+                if (guard.dead) return;
+
+                // Guard AI
+                switch(guard.state) {
+                    case 'patrol':
+                        patrol(guard);
+                        break;
+                    case 'chase':
+                        chase(guard);
+                        break;
+                    case 'investigate':
+                        investigate(guard);
+                        break;
+                }
+
+                // Check if guard sees player
+                if (canSeePlayer(guard)) {
+                    guard.state = 'chase';
+                    guard.lastSeenPlayer = {x: game.player.x, y: game.player.y};
+                    game.alertLevel = Math.min(100, game.alertLevel + 0.5);
+                } else {
+                    game.alertLevel = Math.max(0, game.alertLevel - 0.2);
+                }
+
+                // Guard shooting
+                if (guard.state === 'chase' && Math.random() < 0.02) {
+                    guardShoot(guard);
+                }
+            });
+
+            // Update bullets
+            game.bullets = game.bullets.filter(bullet => {
+                bullet.x += bullet.vx;
+                bullet.y += bullet.vy;
+                bullet.traveled += Math.sqrt(bullet.vx ** 2 + bullet.vy ** 2);
+
+                // Check wall collision
+                if (checkWallCollision(bullet.x, bullet.y, 2, 2)) {
+                    createParticles(bullet.x, bullet.y, '#888', 5);
+                    return false;
+                }
+
+                // Check guard hits
+                let hit = false;
+                game.guards.forEach(guard => {
+                    if (guard.dead) return;
+                    const dist = Math.sqrt((bullet.x - guard.x) ** 2 + (bullet.y - guard.y) ** 2);
+                    if (dist < 15) {
+                        guard.health -= bullet.damage;
+                        createParticles(guard.x, guard.y, '#f00', 8);
+                        if (guard.health <= 0) {
+                            guard.dead = true;
+                            game.score += 100;
+                        }
+                        hit = true;
+                    }
+                });
+
+                if (hit) return false;
+                if (bullet.traveled > bullet.range) return false;
+                return true;
+            });
+
+            // Update particles
+            game.particles = game.particles.filter(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                return p.life > 0;
+            });
+
+            // Check player death
+            if (game.player.health <= 0) {
+                game.gameOver = true;
+                showMessage('MISSION FAILED<br>YOU WERE ELIMINATED<br>SCORE: ' + game.score, '#f00');
+            }
+        }
+
+        function patrol(guard) {
+            if (guard.type === 'stationary') {
+                guard.angle += 0.02;
+                return;
+            }
+
+            if (guard.patrolPoints.length === 0) return;
+
+            const target = guard.patrolPoints[guard.currentPoint];
+            const dx = target.x - guard.x;
+            const dy = target.y - guard.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < 5) {
+                guard.currentPoint = (guard.currentPoint + 1) % guard.patrolPoints.length;
+            } else {
+                guard.x += (dx / dist) * guard.speed;
+                guard.y += (dy / dist) * guard.speed;
+                guard.angle = Math.atan2(dy, dx);
+            }
+        }
+
+        function chase(guard) {
+            if (!guard.lastSeenPlayer) {
+                guard.state = 'patrol';
+                return;
+            }
+
+            const dx = guard.lastSeenPlayer.x - guard.x;
+            const dy = guard.lastSeenPlayer.y - guard.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < 10) {
+                guard.state = 'patrol';
+                return;
+            }
+
+            guard.x += (dx / dist) * guard.speed * 1.5;
+            guard.y += (dy / dist) * guard.speed * 1.5;
+            guard.angle = Math.atan2(dy, dx);
+        }
+
+        function investigate(guard) {
+            if (!guard.investigatePoint) {
+                guard.state = 'patrol';
+                return;
+            }
+
+            const dx = guard.investigatePoint.x - guard.x;
+            const dy = guard.investigatePoint.y - guard.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < 10) {
+                guard.investigatePoint = null;
+                guard.state = 'patrol';
+                return;
+            }
+
+            guard.x += (dx / dist) * guard.speed;
+            guard.y += (dy / dist) * guard.speed;
+            guard.angle = Math.atan2(dy, dx);
+        }
+
+        function canSeePlayer(guard) {
+            const dx = game.player.x - guard.x;
+            const dy = game.player.y - guard.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist > guard.viewDistance) return false;
+
+            const angleToPlayer = Math.atan2(dy, dx);
+            let angleDiff = angleToPlayer - guard.angle;
+
+            while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+            while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
+            if (Math.abs(angleDiff) > guard.viewAngle) return false;
+
+            // Check line of sight
+            return !checkLineWallCollision(guard.x, guard.y, game.player.x, game.player.y);
+        }
+
+        function guardShoot(guard) {
+            const dx = game.player.x - guard.x;
+            const dy = game.player.y - guard.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            game.bullets.push({
+                x: guard.x,
+                y: guard.y,
+                vx: (dx / dist) * 10,
+                vy: (dy / dist) * 10,
+                damage: 20,
+                range: 400,
+                traveled: 0,
+                fromGuard: true
+            });
+        }
+
+        function checkWallCollision(x, y, w, h) {
+            return game.walls.some(wall => {
+                return x < wall.x + wall.width &&
+                       x + w > wall.x &&
+                       y < wall.y + wall.height &&
+                       y + h > wall.y;
+            });
+        }
+
+        function checkLineWallCollision(x1, y1, x2, y2) {
+            const steps = 20;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const x = x1 + (x2 - x1) * t;
+                const y = y1 + (y2 - y1) * t;
+                if (checkWallCollision(x, y, 1, 1)) return true;
+            }
+            return false;
+        }
+
+        function createParticles(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                game.particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    color,
+                    life: 30
+                });
+            }
+        }
+
+        function render() {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw walls
+            ctx.fillStyle = '#333';
+            game.walls.forEach(wall => {
+                ctx.fillRect(wall.x, wall.y, wall.width, wall.height);
+            });
+
+            // Draw loot
+            game.loot.forEach(loot => {
+                if (loot.collected) return;
+                ctx.fillStyle = '#ff0';
+                ctx.beginPath();
+                ctx.arc(loot.x, loot.y, 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ff0';
+                ctx.font = '10px monospace';
+                ctx.fillText('$' + loot.amount, loot.x - 15, loot.y - 15);
+            });
+
+            // Draw shop
+            game.shops.forEach(shop => {
+                ctx.fillStyle = '#00f';
+                ctx.fillRect(shop.x, shop.y, shop.width, shop.height);
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px monospace';
+                ctx.fillText('SHOP', shop.x + 5, shop.y + 25);
+            });
+
+            // Draw objective
+            if (!game.objective.completed) {
+                ctx.fillStyle = '#f0f';
+                ctx.fillRect(game.objective.x, game.objective.y, game.objective.width, game.objective.height);
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px monospace';
+                ctx.fillText('VAULT', game.objective.x + 5, game.objective.y + 30);
+            }
+
+            // Draw guards
+            game.guards.forEach(guard => {
+                if (guard.dead) {
+                    ctx.fillStyle = '#400';
+                    ctx.fillRect(guard.x - 10, guard.y - 10, 20, 20);
+                    return;
+                }
+
+                // Vision cone
+                ctx.fillStyle = guard.state === 'chase' ? 'rgba(255, 0, 0, 0.1)' : 'rgba(255, 255, 0, 0.05)';
+                ctx.beginPath();
+                ctx.moveTo(guard.x, guard.y);
+                ctx.arc(guard.x, guard.y, guard.viewDistance, guard.angle - guard.viewAngle, guard.angle + guard.viewAngle);
+                ctx.closePath();
+                ctx.fill();
+
+                // Guard body
+                ctx.save();
+                ctx.translate(guard.x, guard.y);
+                ctx.rotate(guard.angle);
+                ctx.fillStyle = guard.state === 'chase' ? '#f00' : (guard.state === 'investigate' ? '#fa0' : '#f80');
+                ctx.fillRect(-9, -9, 18, 18);
+                ctx.fillStyle = '#000';
+                ctx.fillRect(5, -3, 8, 6);
+                ctx.restore();
+
+                // Health bar
+                if (guard.health < guard.maxHealth) {
+                    ctx.fillStyle = '#f00';
+                    ctx.fillRect(guard.x - 10, guard.y - 20, 20, 3);
+                    ctx.fillStyle = '#0f0';
+                    ctx.fillRect(guard.x - 10, guard.y - 20, 20 * (guard.health / guard.maxHealth), 3);
+                }
+            });
+
+            // Draw bullets
+            game.bullets.forEach(bullet => {
+                ctx.fillStyle = bullet.fromGuard ? '#f00' : '#0ff';
+                ctx.beginPath();
+                ctx.arc(bullet.x, bullet.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Draw particles
+            game.particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 30;
+                ctx.fillRect(p.x, p.y, 3, 3);
+                ctx.globalAlpha = 1;
+            });
+
+            // Draw player
+            ctx.save();
+            ctx.translate(game.player.x, game.player.y);
+            ctx.rotate(game.player.angle);
+            ctx.fillStyle = '#0f0';
+            ctx.fillRect(-10, -10, 20, 20);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(5, -4, 10, 8);
+            ctx.restore();
+
+            // Player health bar
+            ctx.fillStyle = '#f00';
+            ctx.fillRect(game.player.x - 10, game.player.y - 20, 20, 3);
+            ctx.fillStyle = '#0f0';
+            ctx.fillRect(game.player.x - 10, game.player.y - 20, 20 * (game.player.health / game.player.maxHealth), 3);
+
+            // Update UI
+            document.getElementById('health').textContent = Math.max(0, Math.floor(game.player.health));
+            document.getElementById('money').textContent = game.player.money;
+            document.getElementById('weapon').textContent = game.weapons[game.player.weapon].name;
+
+            const alertText = game.alertLevel > 70 ? 'HIGH' : game.alertLevel > 30 ? 'MEDIUM' : 'NONE';
+            const alertColor = game.alertLevel > 70 ? '#f00' : game.alertLevel > 30 ? '#fa0' : '#0f0';
+            document.getElementById('alert').textContent = alertText;
+            document.getElementById('alert').style.color = alertColor;
+
+            // Show ammo
+            const weapon = game.weapons[game.player.weapon];
+            if (weapon.ammo !== Infinity) {
+                ctx.fillStyle = '#0f0';
+                ctx.font = '14px monospace';
+                ctx.fillText('AMMO: ' + game.player.ammo + '/' + game.player.maxAmmo, 10, canvas.height - 50);
+            }
+
+            // Show score
+            ctx.fillStyle = '#0f0';
+            ctx.font = '14px monospace';
+            ctx.fillText('SCORE: ' + game.score, canvas.width - 120, 90);
+        }
+
+        function showMessage(text, color) {
+            document.getElementById('messageText').innerHTML = text;
+            document.getElementById('message').style.borderColor = color;
+            document.getElementById('message').style.display = 'block';
+        }
+
+        game.restart = function() {
+            // Reset game state
+            game.player.x = 100;
+            game.player.y = 100;
+            game.player.health = 100;
+            game.player.money = 500;
+            game.player.weapon = 'fists';
+            game.player.ammo = 0;
+            game.ownedWeapons = ['fists'];
+            game.bullets = [];
+            game.particles = [];
+            game.alertLevel = 0;
+            game.gameOver = false;
+            game.missionComplete = false;
+            game.score = 0;
+
+            initLevel();
+
+            document.getElementById('message').style.display = 'none';
+        };
+
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Check if bullets hit player
+        function checkPlayerHit() {
+            game.bullets.forEach((bullet, index) => {
+                if (bullet.fromGuard) {
+                    const dist = Math.sqrt((bullet.x - game.player.x) ** 2 + (bullet.y - game.player.y) ** 2);
+                    if (dist < 15) {
+                        game.player.health -= bullet.damage;
+                        createParticles(game.player.x, game.player.y, '#f00', 10);
+                        game.bullets.splice(index, 1);
+                    }
+                }
+            });
+        }
+
+        // Enhanced update function
+        const originalUpdate = update;
+        update = function() {
+            originalUpdate();
+            checkPlayerHit();
+        };
+
+        // Start game
+        initLevel();
+        gameLoop();
+    </script>
+</body>
+</html>
