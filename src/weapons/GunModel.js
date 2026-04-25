@@ -65,11 +65,11 @@ export class GunModel {
   }
 
   update(deltaTime, isMoving = false) {
-    // Smooth recoil recovery
-    this.recoilOffset.multiplyScalar(0.85);
-    this.recoilRotation.x *= 0.85;
-    this.recoilRotation.y *= 0.85;
-    this.recoilRotation.z *= 0.85;
+    // Smooth recoil recovery (faster recovery)
+    this.recoilOffset.multiplyScalar(0.90);
+    this.recoilRotation.x *= 0.90;
+    this.recoilRotation.y *= 0.90;
+    this.recoilRotation.z *= 0.90;
 
     // Update ADS transition
     if (this.isAiming) {
@@ -123,9 +123,9 @@ export class GunModel {
   }
 
   playFireAnimation() {
-    // Recoil kick
-    this.recoilOffset.set(0, 0, 0.05);
-    this.recoilRotation.x = -0.1;
+    // Recoil kick (reduced from 0.05 to 0.03 and rotation from -0.1 to -0.05)
+    this.recoilOffset.set(0, 0, 0.03);
+    this.recoilRotation.x = -0.05;
 
     // Flash the emissive materials
     this.group.traverse((child) => {
