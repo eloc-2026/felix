@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Config } from '../utils/Config.js';
+import EventBus from '../utils/EventBus.js';
 
 export class PlayerController {
   constructor(player, camera, inputManager) {
@@ -14,6 +15,10 @@ export class PlayerController {
     this.moveVector = new THREE.Vector3();
     this.isMoving = false;
     this.isAiming = false;
+
+    // Footsteps
+    this.footstepTimer = 0;
+    this.footstepInterval = 0.4; // seconds between footsteps
   }
 
   update(deltaTime) {
@@ -87,6 +92,15 @@ export class PlayerController {
       const halfWorld = Config.WORLD_SIZE / 2 - 2;
       this.player.position.x = Math.max(-halfWorld, Math.min(halfWorld, this.player.position.x));
       this.player.position.z = Math.max(-halfWorld, Math.min(halfWorld, this.player.position.z));
+
+      // Footstep sounds
+      this.footstepTimer += deltaTime;
+      if (this.footstepTimer >= this.footstepInterval) {
+        this.footstepTimer = 0;
+        EventBus.emit('player:footstep', {});
+      }
+    } else {
+      this.footstepTimer = 0;
     }
 
     // Keep player at correct height

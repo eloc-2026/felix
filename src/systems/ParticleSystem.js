@@ -7,30 +7,48 @@ export class ParticleSystem {
 
   createMuzzleFlash(position, direction) {
     // Create bright flash at gun muzzle
-    const flashGeometry = new THREE.SphereGeometry(0.2, 8, 8);
+    const flashGeometry = new THREE.SphereGeometry(0.15, 8, 8);
     const flashMaterial = new THREE.MeshBasicMaterial({
-      color: 0xFFFF00,
+      color: 0xFFAA00,
       transparent: true,
       opacity: 1
     });
 
     const flash = new THREE.Mesh(flashGeometry, flashMaterial);
     flash.position.copy(position);
-    flash.position.add(direction.clone().multiplyScalar(0.5));
+    flash.position.add(direction.clone().multiplyScalar(0.3));
 
     this.scene.add(flash);
 
+    // Add outer glow
+    const glowGeometry = new THREE.SphereGeometry(0.25, 8, 8);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+      color: 0xFF6600,
+      transparent: true,
+      opacity: 0.5
+    });
+
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    glow.position.copy(flash.position);
+    this.scene.add(glow);
+
     // Quick fade out
     let opacity = 1;
+    let glowOpacity = 0.5;
     const fadeInterval = setInterval(() => {
-      opacity -= 0.2;
-      flashMaterial.opacity = opacity;
+      opacity -= 0.3;
+      glowOpacity -= 0.15;
+      flashMaterial.opacity = Math.max(0, opacity);
+      glowMaterial.opacity = Math.max(0, glowOpacity);
 
       if (opacity <= 0) {
         clearInterval(fadeInterval);
         this.scene.remove(flash);
+        this.scene.remove(glow);
         flashGeometry.dispose();
         flashMaterial.dispose();
+        glowGeometry.dispose();
+        glowMaterial.dispose();
       }
     }, 16);
   }

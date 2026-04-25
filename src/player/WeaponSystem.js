@@ -5,6 +5,8 @@ import { Sniper } from '../weapons/Sniper.js';
 import { ProjectileSystem } from '../weapons/ProjectileSystem.js';
 import { ParticleSystem } from '../systems/ParticleSystem.js';
 import { PistolModel, RifleModel, ShotgunModel, SniperModel } from '../weapons/GunModel.js';
+import { HitMarkerSystem } from '../systems/HitMarkerSystem.js';
+import { DamageNumberSystem } from '../systems/DamageNumberSystem.js';
 import EventBus from '../utils/EventBus.js';
 import * as THREE from 'three';
 
@@ -47,6 +49,8 @@ export class WeaponSystem {
     // Systems
     this.projectileSystem = new ProjectileSystem(scene);
     this.particleSystem = new ParticleSystem(scene);
+    this.hitMarkerSystem = new HitMarkerSystem();
+    this.damageNumberSystem = new DamageNumberSystem(scene, camera);
 
     // Enemy reference (will be set by Game)
     this.enemies = [];
@@ -123,6 +127,9 @@ export class WeaponSystem {
 
     // Update projectile system
     this.projectileSystem.update(deltaTime);
+
+    // Update damage numbers
+    this.damageNumberSystem.update();
   }
 
   switchWeapon(index) {
@@ -174,11 +181,30 @@ export class WeaponSystem {
     this.particleSystem.createMuzzleFlash(muzzlePosition, direction);
 
     // Process hits
+    let hitEnemy = false;
     results.forEach(result => {
       if (result.hit && result.object.userData.enemy) {
-        result.object.userData.enemy.takeDamage(result.damage);
+        const enemy = result.object.userData.enemy;
+        const wasAlive = enemy.isAlive;
+        enemy.takeDamage(result.damage);
+
+        // Show hit marker and damage number
+        if (wasAlive) {
+          hitEnemy = true;
+          // Check if kill
+          if (!enemy.isAlive) {
+            this.hitMarkerSystem.showHitMarker(true); // Kill marker
+            this.damageNumberSystem.showDamage(result.point, result.damage, true);
+          } else {
+            this.hitMarkerSystem.showHitMarker(false); // Hit marker
+            this.damageNumberSystem.showDamage(result.point, result.damage, false);
+          }
+        }
       }
     });
+
+    // If we hit nothing, no marker
+    // The marker is shown above per hit
   }
 
   applyRecoil() {

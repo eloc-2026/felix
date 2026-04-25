@@ -9,6 +9,7 @@ import { PostProcessingSystem } from '../systems/PostProcessing.js';
 import { WeaponSystem } from '../player/WeaponSystem.js';
 import { EnemySpawner } from '../enemies/EnemySpawner.js';
 import { DamageSystem } from '../systems/DamageSystem.js';
+import { AudioSystem } from '../systems/AudioSystem.js';
 
 export class Game {
   constructor() {
@@ -41,6 +42,9 @@ export class Game {
       this.sceneManager.camera,
       this.postProcessing
     );
+
+    // Audio system
+    this.audioSystem = new AudioSystem();
 
     // Player
     this.player = new Player(this.sceneManager.scene);
@@ -99,6 +103,10 @@ export class Game {
     this.uiSystem.hideStartScreen();
     this.inputManager.requestPointerLock();
 
+    // Resume audio context (browser autoplay policy)
+    this.audioSystem.resume();
+    this.audioSystem.startAmbientMusic();
+
     // Spawn initial enemies
     this.enemySpawner.spawnWave(5);
 
@@ -150,6 +158,7 @@ export class Game {
 
   dispose() {
     this.gameLoop.stop();
+    this.audioSystem.dispose();
     this.city.dispose();
     this.postProcessing.dispose();
     this.sceneManager.dispose();

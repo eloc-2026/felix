@@ -48,7 +48,8 @@ export class Weapon {
 
     EventBus.emit('weapon:fire', {
       current: this.currentAmmo,
-      reserve: this.reserveAmmo
+      reserve: this.reserveAmmo,
+      weaponType: this.name
     });
 
     // Auto reload if empty
