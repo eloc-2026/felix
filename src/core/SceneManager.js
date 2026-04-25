@@ -9,11 +9,11 @@ export class SceneManager {
 
     this.resizeCallbacks = [];
 
-    // Camera
+    // Camera (near plane at 0.01 to avoid clipping gun models)
     this.camera = new THREE.PerspectiveCamera(
       75,
       window.innerWidth / window.innerHeight,
-      0.1,
+      0.01,  // Very close near plane for first-person gun visibility
       1000
     );
     this.camera.position.set(0, Config.PLAYER_HEIGHT, 0);
