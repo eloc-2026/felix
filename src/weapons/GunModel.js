@@ -10,11 +10,20 @@ export class GunModel {
     this.basePosition = new THREE.Vector3(0.15, -0.15, -0.4);
     this.baseRotation = new THREE.Euler(0, -0.1, 0); // Slight angle for better view
 
+    // ADS (Aim Down Sights) positions
+    this.adsPosition = new THREE.Vector3(0, -0.08, -0.35);
+    this.adsRotation = new THREE.Euler(0, 0, 0);
+
     // Animation state
     this.recoilOffset = new THREE.Vector3();
     this.recoilRotation = new THREE.Euler();
     this.reloadProgress = 0;
     this.isReloading = false;
+
+    // ADS state
+    this.isAiming = false;
+    this.aimProgress = 0;
+    this.aimSpeed = 8; // How fast to transition to ADS
 
     // Movement sway
     this.swayTime = 0;
@@ -30,21 +39,29 @@ export class GunModel {
     this.group.add(gunLight);
   }
 
-  updateSway(deltaTime, isMoving) {
+  updateSway(deltaTime, isMoving, swayMultiplier = 1) {
     if (isMoving) {
       this.swayTime += deltaTime * 10;
 
       // Bob up and down
-      const bobOffset = Math.sin(this.swayTime) * this.bobIntensity;
-      this.group.position.y = this.basePosition.y + bobOffset + this.recoilOffset.y;
+      const bobOffset = Math.sin(this.swayTime) * this.bobIntensity * swayMultiplier;
+      this.group.position.y += bobOffset;
 
       // Sway side to side
-      const swayOffset = Math.sin(this.swayTime * 0.5) * this.swayIntensity;
-      this.group.position.x = this.basePosition.x + swayOffset + this.recoilOffset.x;
+      const swayOffset = Math.sin(this.swayTime * 0.5) * this.swayIntensity * swayMultiplier;
+      this.group.position.x += swayOffset;
     } else {
       // Smoothly return to base position when not moving
       this.swayTime = 0;
     }
+  }
+
+  setAiming(isAiming) {
+    this.isAiming = isAiming;
+  }
+
+  getAimProgress() {
+    return this.aimProgress;
   }
 
   update(deltaTime, isMoving = false) {
@@ -54,14 +71,35 @@ export class GunModel {
     this.recoilRotation.y *= 0.85;
     this.recoilRotation.z *= 0.85;
 
-    // Update base position
-    this.group.position.copy(this.basePosition).add(this.recoilOffset);
+    // Update ADS transition
+    if (this.isAiming) {
+      this.aimProgress = Math.min(1, this.aimProgress + deltaTime * this.aimSpeed);
+    } else {
+      this.aimProgress = Math.max(0, this.aimProgress - deltaTime * this.aimSpeed);
+    }
 
-    // Update sway based on movement
-    this.updateSway(deltaTime, isMoving);
+    // Lerp between hip and ADS positions
+    const targetPosition = new THREE.Vector3().lerpVectors(
+      this.basePosition,
+      this.adsPosition,
+      this.aimProgress
+    );
+
+    const targetRotation = new THREE.Euler(
+      THREE.MathUtils.lerp(this.baseRotation.x, this.adsRotation.x, this.aimProgress),
+      THREE.MathUtils.lerp(this.baseRotation.y, this.adsRotation.y, this.aimProgress),
+      THREE.MathUtils.lerp(this.baseRotation.z, this.adsRotation.z, this.aimProgress)
+    );
+
+    // Update base position with lerped values
+    this.group.position.copy(targetPosition).add(this.recoilOffset);
+
+    // Reduce sway when aiming
+    const swayMultiplier = 1 - (this.aimProgress * 0.7);
+    this.updateSway(deltaTime, isMoving, swayMultiplier);
 
     // Update rotation
-    this.group.rotation.copy(this.baseRotation);
+    this.group.rotation.copy(targetRotation);
     this.group.rotation.x += this.recoilRotation.x;
     this.group.rotation.y += this.recoilRotation.y;
     this.group.rotation.z += this.recoilRotation.z;

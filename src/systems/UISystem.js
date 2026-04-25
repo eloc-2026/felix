@@ -8,6 +8,7 @@ export class UISystem {
     this.ammoText = document.getElementById('ammo-text');
     this.weaponName = document.getElementById('weapon-name');
     this.killsText = document.getElementById('kills');
+    this.crosshair = document.getElementById('crosshair');
 
     // Screens
     this.startScreen = document.getElementById('start-screen');
@@ -29,6 +30,15 @@ export class UISystem {
     EventBus.on('weapon:switch', (data) => this.updateWeapon(data));
     EventBus.on('weapon:fire', (data) => this.updateAmmo(data));
     EventBus.on('weapon:reload', (data) => this.updateAmmo(data));
+    EventBus.on('weapon:aim', (data) => this.updateCrosshair(data.isAiming));
+  }
+
+  updateCrosshair(isAiming) {
+    if (isAiming) {
+      this.crosshair.classList.add('aiming');
+    } else {
+      this.crosshair.classList.remove('aiming');
+    }
   }
 
   updateHealth(health) {

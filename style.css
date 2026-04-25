@@ -37,6 +37,12 @@ canvas {
   width: 20px;
   height: 20px;
   pointer-events: none;
+  transition: all 0.2s ease-out;
+}
+
+#crosshair.aiming {
+  width: 8px;
+  height: 8px;
 }
 
 #crosshair::before,
@@ -45,6 +51,7 @@ canvas {
   position: absolute;
   background: #FF006E;
   box-shadow: 0 0 10px #FF006E;
+  transition: all 0.2s ease-out;
 }
 
 #crosshair::before {
@@ -59,6 +66,16 @@ canvas {
   width: 100%;
   top: 50%;
   transform: translateY(-50%);
+}
+
+#crosshair.aiming::before {
+  width: 1px;
+  box-shadow: 0 0 5px #FF006E;
+}
+
+#crosshair.aiming::after {
+  height: 1px;
+  box-shadow: 0 0 5px #FF006E;
 }
 
 /* HUD */

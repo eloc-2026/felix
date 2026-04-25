@@ -51,6 +51,11 @@ export class WeaponSystem {
     // Enemy reference (will be set by Game)
     this.enemies = [];
 
+    // ADS state
+    this.isAiming = false;
+    this.baseFOV = 75;
+    this.aimFOV = 55; // Zoomed in FOV when aiming
+
     // Listen for enemy deaths
     EventBus.on('enemy:death', () => {
       this.player.addKill();
@@ -71,6 +76,24 @@ export class WeaponSystem {
 
   update(deltaTime) {
     if (!this.player.isAlive) return;
+
+    // Handle aiming (right mouse button)
+    const wasAiming = this.isAiming;
+    this.isAiming = this.input.isMouseButtonPressed(2); // Right click
+
+    if (this.isAiming !== wasAiming) {
+      this.currentGunModel.setAiming(this.isAiming);
+      if (this.playerController) {
+        this.playerController.setAiming(this.isAiming);
+      }
+      EventBus.emit('weapon:aim', { isAiming: this.isAiming });
+    }
+
+    // Update camera FOV based on aim state
+    const aimProgress = this.currentGunModel.getAimProgress();
+    const targetFOV = THREE.MathUtils.lerp(this.baseFOV, this.aimFOV, aimProgress);
+    this.camera.fov = targetFOV;
+    this.camera.updateProjectionMatrix();
 
     // Update current weapon
     this.currentWeapon.update(deltaTime);
@@ -161,9 +184,12 @@ export class WeaponSystem {
   applyRecoil() {
     const recoil = this.currentWeapon.getRecoil();
 
+    // Reduce recoil when aiming
+    const recoilMultiplier = this.isAiming ? 0.5 : 1.0;
+
     // Apply recoil to pitch and yaw
-    this.player.pitch += recoil.y;
-    this.player.yaw += recoil.x;
+    this.player.pitch += recoil.y * recoilMultiplier;
+    this.player.yaw += recoil.x * recoilMultiplier;
 
     // Clamp pitch
     this.player.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.player.pitch));

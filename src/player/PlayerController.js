@@ -9,9 +9,11 @@ export class PlayerController {
 
     // Movement
     this.moveSpeed = Config.PLAYER_SPEED;
+    this.aimMoveSpeedMultiplier = 0.6; // Slower when aiming
     this.direction = new THREE.Vector3();
     this.moveVector = new THREE.Vector3();
     this.isMoving = false;
+    this.isAiming = false;
   }
 
   update(deltaTime) {
@@ -71,7 +73,12 @@ export class PlayerController {
       this.moveVector.add(right.multiplyScalar(this.direction.x));
 
       this.moveVector.normalize();
-      this.moveVector.multiplyScalar(this.moveSpeed * deltaTime);
+
+      // Apply move speed with aim modifier
+      const currentSpeed = this.isAiming
+        ? this.moveSpeed * this.aimMoveSpeedMultiplier
+        : this.moveSpeed;
+      this.moveVector.multiplyScalar(currentSpeed * deltaTime);
 
       // Apply movement
       this.player.position.add(this.moveVector);
@@ -92,5 +99,9 @@ export class PlayerController {
 
     // Apply rotation
     this.camera.rotation.copy(this.player.rotation);
+  }
+
+  setAiming(isAiming) {
+    this.isAiming = isAiming;
   }
 }
