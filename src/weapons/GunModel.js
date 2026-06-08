@@ -6,9 +6,9 @@ export class GunModel {
     this.camera = camera;
     this.group = new THREE.Group();
 
-    // Position in front of camera (bottom right for FPS view)
-    this.basePosition = new THREE.Vector3(0.15, -0.15, -0.4);
-    this.baseRotation = new THREE.Euler(0, -0.1, 0); // Slight angle for better view
+    // Position on right side of screen (Call of Duty style)
+    this.basePosition = new THREE.Vector3(0.25, -0.2, -0.5);
+    this.baseRotation = new THREE.Euler(0, -0.15, 0); // Angled inward
 
     // ADS (Aim Down Sights) positions
     this.adsPosition = new THREE.Vector3(0, -0.08, -0.35);
@@ -182,8 +182,8 @@ export class PistolModel extends GunModel {
 
     const neonMaterial = NeonMaterials.createNeonTrim(0x00F5FF);
 
-    // Scale factor for better visibility
-    const scale = 1.5;
+    // Scale factor for better visibility on the side
+    const scale = 1.8;
 
     // Barrel
     const barrelGeometry = new THREE.CylinderGeometry(0.02 * scale, 0.02 * scale, 0.3 * scale, 8);
@@ -220,14 +220,16 @@ export class PistolModel extends GunModel {
     muzzleGlow.position.set(0.32 * scale, 0, 0);
     this.group.add(muzzleGlow);
 
-    // Scale entire group
-    this.group.scale.set(1.2, 1.2, 1.2);
+    // Scale entire group for side view
+    this.group.scale.set(1.0, 1.0, 1.0);
   }
 }
 
 export class RifleModel extends GunModel {
   constructor(camera) {
     super(camera);
+    // Override ADS position for scope alignment
+    this.adsPosition = new THREE.Vector3(0, -0.05, -0.32);
     this.createModel();
     this.enableLighting();
   }
@@ -241,7 +243,7 @@ export class RifleModel extends GunModel {
 
     const neonMaterial = NeonMaterials.createNeonTrim(0xFF006E);
 
-    const scale = 1.5;
+    const scale = 1.8;
 
     // Barrel
     const barrelGeometry = new THREE.CylinderGeometry(0.025 * scale, 0.025 * scale, 0.5 * scale, 8);
@@ -278,6 +280,52 @@ export class RifleModel extends GunModel {
     rail2.position.set(0.05 * scale, 0.065 * scale, -0.04 * scale);
     this.group.add(rail2);
 
+    // Red dot / Holographic scope
+    // Scope mount
+    const scopeMountGeometry = new THREE.BoxGeometry(0.08 * scale, 0.04 * scale, 0.06 * scale);
+    const scopeMount = new THREE.Mesh(scopeMountGeometry, baseMaterial);
+    scopeMount.position.set(0.05 * scale, 0.08 * scale, 0);
+    this.group.add(scopeMount);
+
+    // Scope housing (box-shaped for tactical look)
+    const scopeHousingGeometry = new THREE.BoxGeometry(0.12 * scale, 0.055 * scale, 0.055 * scale);
+    const scopeHousing = new THREE.Mesh(scopeHousingGeometry, baseMaterial);
+    scopeHousing.position.set(0.08 * scale, 0.11 * scale, 0);
+    this.group.add(scopeHousing);
+
+    // Scope glass/lens (front)
+    const scopeGlassGeometry = new THREE.PlaneGeometry(0.045 * scale, 0.045 * scale);
+    const scopeGlassMaterial = new THREE.MeshStandardMaterial({
+      color: 0x000033,
+      metalness: 0.9,
+      roughness: 0.1,
+      transparent: true,
+      opacity: 0.7
+    });
+    const scopeGlass = new THREE.Mesh(scopeGlassGeometry, scopeGlassMaterial);
+    scopeGlass.position.set(0.14 * scale, 0.11 * scale, 0);
+    scopeGlass.rotation.y = Math.PI / 2;
+    this.group.add(scopeGlass);
+
+    // Red dot reticle
+    const reticleGeometry = new THREE.CircleGeometry(0.003 * scale, 8);
+    const reticleMaterial = NeonMaterials.createNeonTrim(0xFF0000);
+    const reticle = new THREE.Mesh(reticleGeometry, reticleMaterial);
+    reticle.position.set(0.141 * scale, 0.11 * scale, 0);
+    reticle.rotation.y = Math.PI / 2;
+    this.group.add(reticle);
+
+    // Scope adjustment turrets (top and side)
+    const turretGeometry = new THREE.CylinderGeometry(0.012 * scale, 0.012 * scale, 0.02 * scale, 8);
+    const turret1 = new THREE.Mesh(turretGeometry, neonMaterial);
+    turret1.position.set(0.06 * scale, 0.138 * scale, 0);
+    this.group.add(turret1);
+
+    const turret2 = new THREE.Mesh(turretGeometry.clone(), neonMaterial);
+    turret2.rotation.z = Math.PI / 2;
+    turret2.position.set(0.06 * scale, 0.11 * scale, 0.038 * scale);
+    this.group.add(turret2);
+
     // Muzzle brake
     const muzzleGeometry = new THREE.CylinderGeometry(0.05 * scale, 0.04 * scale, 0.06 * scale, 6);
     const muzzle = new THREE.Mesh(muzzleGeometry, neonMaterial);
@@ -285,8 +333,8 @@ export class RifleModel extends GunModel {
     muzzle.position.set(0.475 * scale, 0, 0);
     this.group.add(muzzle);
 
-    // Scale entire group
-    this.group.scale.set(1.2, 1.2, 1.2);
+    // Scale entire group for side view
+    this.group.scale.set(1.0, 1.0, 1.0);
   }
 }
 
@@ -306,7 +354,7 @@ export class ShotgunModel extends GunModel {
 
     const neonMaterial = NeonMaterials.createNeonTrim(0x8B00FF);
 
-    const scale = 1.5;
+    const scale = 1.8;
 
     // Double barrel
     const barrelGeometry = new THREE.CylinderGeometry(0.04 * scale, 0.04 * scale, 0.4 * scale, 8);
@@ -357,8 +405,8 @@ export class ShotgunModel extends GunModel {
     ring2.position.set(0.37 * scale, -0.04 * scale, 0);
     this.group.add(ring2);
 
-    // Scale entire group
-    this.group.scale.set(1.2, 1.2, 1.2);
+    // Scale entire group for side view
+    this.group.scale.set(1.0, 1.0, 1.0);
   }
 }
 
@@ -378,7 +426,7 @@ export class SniperModel extends GunModel {
 
     const neonMaterial = NeonMaterials.createNeonTrim(0x00F5FF);
 
-    const scale = 1.5;
+    const scale = 1.8;
 
     // Long barrel
     const barrelGeometry = new THREE.CylinderGeometry(0.025 * scale, 0.035 * scale, 0.6 * scale, 8);
@@ -438,7 +486,7 @@ export class SniperModel extends GunModel {
     muzzle.position.set(0.58 * scale, 0, 0);
     this.group.add(muzzle);
 
-    // Scale entire group
-    this.group.scale.set(1.2, 1.2, 1.2);
+    // Scale entire group for side view
+    this.group.scale.set(1.0, 1.0, 1.0);
   }
 }

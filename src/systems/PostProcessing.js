@@ -15,38 +15,40 @@ export class PostProcessingSystem {
     const renderPass = new RenderPass(scene, camera);
     this.composer.addPass(renderPass);
 
-    // Bloom effect for neon glow
-    const bloomEffect = new BloomEffect({
-      intensity: 1.5,
-      luminanceThreshold: 0.3,
-      luminanceSmoothing: 0.9,
-      mipmapBlur: true
+    // Optimized bloom effect - lower intensity for performance
+    this.bloomEffect = new BloomEffect({
+      intensity: 0.8,
+      luminanceThreshold: 0.4,
+      luminanceSmoothing: 0.7,
+      mipmapBlur: false  // Disabled for performance
     });
 
-    // Chromatic aberration for edge distortion
-    const chromaticAberrationEffect = new ChromaticAberrationEffect({
-      offset: new THREE.Vector2(0.002, 0.002)
+    // Reduced chromatic aberration
+    this.chromaticAberrationEffect = new ChromaticAberrationEffect({
+      offset: new THREE.Vector2(0.001, 0.001)  // Reduced from 0.002
     });
 
-    // Vignette for focus
-    const vignetteEffect = new VignetteEffect({
-      darkness: 0.5,
+    // Lighter vignette
+    this.vignetteEffect = new VignetteEffect({
+      darkness: 0.3,  // Reduced from 0.5
       offset: 0.2
     });
 
-    // Add effects pass
-    const effectPass = new EffectPass(
+    // Add effects pass with all effects
+    this.effectPass = new EffectPass(
       camera,
-      bloomEffect,
-      chromaticAberrationEffect,
-      vignetteEffect
+      this.bloomEffect,
+      this.chromaticAberrationEffect,
+      this.vignetteEffect
     );
-    this.composer.addPass(effectPass);
+    this.composer.addPass(this.effectPass);
 
-    // Store effects for later modification
-    this.bloomEffect = bloomEffect;
-    this.chromaticAberrationEffect = chromaticAberrationEffect;
-    this.vignetteEffect = vignetteEffect;
+    // Track enabled state
+    this.effectsEnabled = {
+      bloom: true,
+      chromatic: true,
+      vignette: true
+    };
   }
 
   render(deltaTime) {
@@ -55,6 +57,43 @@ export class PostProcessingSystem {
 
   setVignetteDarkness(darkness) {
     this.vignetteEffect.uniforms.get('darkness').value = darkness;
+  }
+
+  setBloomEnabled(enabled) {
+    this.effectsEnabled.bloom = enabled;
+    this.bloomEffect.blendMode.opacity.value = enabled ? 1 : 0;
+  }
+
+  setChromaticEnabled(enabled) {
+    this.effectsEnabled.chromatic = enabled;
+    const offset = enabled ? new THREE.Vector2(0.002, 0.002) : new THREE.Vector2(0, 0);
+    this.chromaticAberrationEffect.offset = offset;
+  }
+
+  setVignetteEnabled(enabled) {
+    this.effectsEnabled.vignette = enabled;
+    this.vignetteEffect.uniforms.get('darkness').value = enabled ? 0.5 : 0;
+  }
+
+  setQuality(quality) {
+    switch (quality) {
+      case 'low':
+        this.bloomEffect.intensity = 0.5;
+        this.bloomEffect.mipmapBlur = false;
+        break;
+      case 'medium':
+        this.bloomEffect.intensity = 0.8;
+        this.bloomEffect.mipmapBlur = false;
+        break;
+      case 'high':
+        this.bloomEffect.intensity = 1.0;
+        this.bloomEffect.mipmapBlur = false;  // Disabled for performance
+        break;
+      case 'ultra':
+        this.bloomEffect.intensity = 1.3;
+        this.bloomEffect.mipmapBlur = true;
+        break;
+    }
   }
 
   onResize() {

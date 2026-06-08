@@ -11,6 +11,7 @@ export class EnemySpawner {
     this.enemies = [];
     this.aiControllers = [];
     this.spawnPoints = this.generateSpawnPoints();
+    this.buildingMeshes = []; // Building meshes for AI line of sight
   }
 
   generateSpawnPoints() {
@@ -30,7 +31,7 @@ export class EnemySpawner {
     return points;
   }
 
-  spawnWave(enemyCount = 5) {
+  spawnWave(enemyCount = 10) {
     for (let i = 0; i < enemyCount; i++) {
       const spawnPoint = this.spawnPoints[i % this.spawnPoints.length].clone();
 
@@ -40,6 +41,9 @@ export class EnemySpawner {
 
       const enemy = new Enemy(this.scene, spawnPoint);
       const aiController = new AIController(enemy, this.player, this.scene);
+
+      // Pass building meshes to AI for collision detection
+      aiController.setBuildingMeshes(this.buildingMeshes);
 
       this.enemies.push(enemy);
       this.aiControllers.push(aiController);
@@ -70,13 +74,21 @@ export class EnemySpawner {
     // Check if all enemies dead - spawn new wave
     if (this.enemies.filter(e => e.isAlive).length === 0) {
       setTimeout(() => {
-        this.spawnWave(5 + Math.floor(this.enemies.length / 5)); // Increase difficulty
+        this.spawnWave(10); // Keep at 10 enemies per wave
       }, 3000);
     }
   }
 
   getEnemyMeshes() {
     return this.enemies.filter(e => e.isAlive).map(e => e.mesh);
+  }
+
+  setBuildingMeshes(meshes) {
+    this.buildingMeshes = meshes;
+    // Update all existing AI controllers with new building meshes
+    this.aiControllers.forEach(ai => {
+      ai.setBuildingMeshes(meshes);
+    });
   }
 
   reset() {
@@ -91,6 +103,6 @@ export class EnemySpawner {
     this.aiControllers = [];
 
     // Spawn initial wave
-    this.spawnWave(5);
+    this.spawnWave(10);
   }
 }

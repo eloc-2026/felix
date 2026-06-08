@@ -19,6 +19,9 @@ export class AIController {
 
     // Combat
     this.fireTimer = 0;
+
+    // Building colliders (will be set by EnemySpawner)
+    this.buildingMeshes = [];
   }
 
   generatePatrolWaypoints(center) {
@@ -143,17 +146,22 @@ export class AIController {
         .subVectors(this.player.position, this.enemy.position)
         .normalize();
 
-      this.raycaster.set(this.enemy.position, direction);
-      this.raycaster.far = Config.ENEMY_DETECT_RANGE;
+      const eyePosition = this.enemy.position.clone();
+      eyePosition.y += 1.8; // Eye height
 
-      // Only detect if we have line of sight (no buildings blocking)
-      // For simplicity, we'll just use distance check for now
-      // In a full implementation, you'd raycast against building geometry
+      this.raycaster.set(eyePosition, direction);
+      this.raycaster.far = distanceToPlayer;
 
-      if (this.enemy.state === AIStates.PATROL) {
-        // Transition to detect state
-        this.enemy.state = AIStates.DETECT;
-        this.detectionTimer = 0;
+      // Check if buildings block line of sight
+      const buildingHits = this.raycaster.intersectObjects(this.buildingMeshes, true);
+
+      // Only detect if we have clear line of sight (no buildings blocking)
+      if (buildingHits.length === 0) {
+        if (this.enemy.state === AIStates.PATROL) {
+          // Transition to detect state
+          this.enemy.state = AIStates.DETECT;
+          this.detectionTimer = 0;
+        }
       }
     }
   }
@@ -174,10 +182,23 @@ export class AIController {
     direction.normalize();
 
     // Raycast to check if hit player
-    this.raycaster.set(this.enemy.position, direction);
+    const gunPosition = this.enemy.position.clone();
+    gunPosition.y += 1.5; // Gun height
+
+    this.raycaster.set(gunPosition, direction);
     this.raycaster.far = Config.ENEMY_ATTACK_RANGE;
 
-    // Check if player is hit (simple distance check)
+    // Check for building collisions FIRST
+    const buildingHits = this.raycaster.intersectObjects(this.buildingMeshes, true);
+
+    if (buildingHits.length > 0) {
+      // Hit a building - bullet stops, can't hit player
+      const hitPoint = buildingHits[0].point;
+      this.createEnemyBulletTrail(direction, hitPoint);
+      return; // Don't damage player, bullet was blocked
+    }
+
+    // No building in the way, check if player is hit (simple distance check)
     const distanceToPlayer = this.enemy.position.distanceTo(this.player.position);
     if (distanceToPlayer <= Config.ENEMY_ATTACK_RANGE) {
       // Chance to hit based on distance
@@ -188,14 +209,17 @@ export class AIController {
     }
 
     // Visual effect (bullet trail from enemy to player)
-    this.createEnemyBulletTrail(direction);
+    this.createEnemyBulletTrail(direction, null);
   }
 
-  createEnemyBulletTrail(direction) {
+  createEnemyBulletTrail(direction, hitPoint = null) {
     const startPos = this.enemy.position.clone();
     startPos.y += 1.5; // Gun height
 
-    const endPos = startPos.clone().add(direction.multiplyScalar(Config.ENEMY_ATTACK_RANGE));
+    // If we hit a building, end at the hit point. Otherwise, use max range.
+    const endPos = hitPoint
+      ? hitPoint
+      : startPos.clone().add(direction.multiplyScalar(Config.ENEMY_ATTACK_RANGE));
 
     const points = [startPos, endPos];
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -221,5 +245,10 @@ export class AIController {
         material.dispose();
       }
     }, 16);
+  }
+
+  // Set building meshes for collision detection
+  setBuildingMeshes(meshes) {
+    this.buildingMeshes = meshes;
   }
 }

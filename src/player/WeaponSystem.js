@@ -47,7 +47,7 @@ export class WeaponSystem {
     });
 
     // Systems
-    this.projectileSystem = new ProjectileSystem(scene);
+    this.projectileSystem = new ProjectileSystem(scene, camera);
     this.particleSystem = new ParticleSystem(scene);
     this.hitMarkerSystem = new HitMarkerSystem();
     this.damageNumberSystem = new DamageNumberSystem(scene, camera);
@@ -55,10 +55,14 @@ export class WeaponSystem {
     // Enemy reference (will be set by Game)
     this.enemies = [];
 
+    // Building meshes for collision (will be set by Game)
+    this.buildingMeshes = [];
+
     // ADS state
     this.isAiming = false;
     this.baseFOV = 75;
-    this.aimFOV = 55; // Zoomed in FOV when aiming
+    this.aimFOV = 55; // Zoomed in FOV when aiming (default for most weapons)
+    this.sniperAimFOV = 25; // Extra zoom for sniper scope (8x magnification)
 
     // Listen for enemy deaths
     EventBus.on('enemy:death', () => {
@@ -95,7 +99,9 @@ export class WeaponSystem {
 
     // Update camera FOV based on aim state
     const aimProgress = this.currentGunModel.getAimProgress();
-    const targetFOV = THREE.MathUtils.lerp(this.baseFOV, this.aimFOV, aimProgress);
+    // Use sniper FOV if currently using sniper rifle
+    const targetAimFOV = this.currentWeaponIndex === 3 ? this.sniperAimFOV : this.aimFOV;
+    const targetFOV = THREE.MathUtils.lerp(this.baseFOV, targetAimFOV, aimProgress);
     this.camera.fov = targetFOV;
     this.camera.updateProjectionMatrix();
 
@@ -161,29 +167,45 @@ export class WeaponSystem {
     // Play gun model fire animation
     this.currentGunModel.playFireAnimation();
 
-    // Get firing direction from camera
+    // Get firing direction from camera CENTER (where crosshair points)
     const direction = new THREE.Vector3(0, 0, -1);
     direction.applyQuaternion(this.camera.quaternion);
 
-    // Get muzzle position (slightly in front of camera)
-    const muzzlePosition = this.camera.position.clone();
-    muzzlePosition.add(direction.clone().multiplyScalar(0.5));
+    // Fire from camera center (Call of Duty style - bullets come from crosshair, not gun model)
+    const bulletOrigin = this.camera.position.clone();
+    bulletOrigin.add(direction.clone().multiplyScalar(0.3));
 
-    // Fire projectile(s)
+    // Get gun model muzzle position for visual effects only
+    const gunWorldPosition = new THREE.Vector3();
+    this.currentGunModel.group.getWorldPosition(gunWorldPosition);
+
+    // Offset to approximate muzzle position on the gun model
+    const muzzleOffset = new THREE.Vector3(0.3, 0, 0); // Right side offset for muzzle
+    muzzleOffset.applyQuaternion(this.camera.quaternion);
+    const visualMuzzlePosition = gunWorldPosition.clone().add(muzzleOffset);
+
+    // Fire projectile(s) from camera center (gameplay)
     const results = this.projectileSystem.fireBullet(
-      muzzlePosition,
+      bulletOrigin,
       direction,
       weaponData,
-      this.enemies
+      this.enemies,
+      this.buildingMeshes
     );
 
-    // Create muzzle flash
-    this.particleSystem.createMuzzleFlash(muzzlePosition, direction);
+    // Create enhanced visual effects at gun model position
+    this.particleSystem.createMuzzleFlash(visualMuzzlePosition, direction);
+    this.projectileSystem.createMuzzleFlash(visualMuzzlePosition, direction);
+    this.projectileSystem.createShellCasing(visualMuzzlePosition, direction);
+
+    // Add screen shake based on weapon type
+    const shakeIntensity = weaponData.pelletCount > 1 ? 0.008 : 0.004;
+    this.projectileSystem.addScreenShake(shakeIntensity);
 
     // Process hits
     let hitEnemy = false;
     results.forEach(result => {
-      if (result.hit && result.object.userData.enemy) {
+      if (result.hit && !result.hitBuilding && result.object.userData.enemy) {
         const enemy = result.object.userData.enemy;
         const wasAlive = enemy.isAlive;
         enemy.takeDamage(result.damage);
@@ -191,13 +213,25 @@ export class WeaponSystem {
         // Show hit marker and damage number
         if (wasAlive) {
           hitEnemy = true;
+          const isHeadshot = result.isHeadshot || false;
+
           // Check if kill
           if (!enemy.isAlive) {
-            this.hitMarkerSystem.showHitMarker(true); // Kill marker
+            this.hitMarkerSystem.showHitMarker(true, isHeadshot); // Kill marker with headshot flag
             this.damageNumberSystem.showDamage(result.point, result.damage, true);
+
+            // Emit headshot kill event if applicable
+            if (isHeadshot) {
+              EventBus.emit('combat:headshot-kill', { damage: result.damage });
+            }
           } else {
-            this.hitMarkerSystem.showHitMarker(false); // Hit marker
+            this.hitMarkerSystem.showHitMarker(false, isHeadshot); // Hit marker with headshot flag
             this.damageNumberSystem.showDamage(result.point, result.damage, false);
+
+            // Emit headshot hit event if applicable
+            if (isHeadshot) {
+              EventBus.emit('combat:headshot', { damage: result.damage });
+            }
           }
         }
       }
@@ -223,6 +257,10 @@ export class WeaponSystem {
 
   setEnemies(enemies) {
     this.enemies = enemies;
+  }
+
+  setBuildingColliders(buildingMeshes) {
+    this.buildingMeshes = buildingMeshes;
   }
 
   reset() {

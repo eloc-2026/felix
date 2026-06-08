@@ -1,4 +1,5 @@
 import EventBus from '../utils/EventBus.js';
+import { SniperScopeSystem } from './SniperScopeSystem.js';
 
 export class UISystem {
   constructor() {
@@ -9,12 +10,20 @@ export class UISystem {
     this.weaponName = document.getElementById('weapon-name');
     this.killsText = document.getElementById('kills');
     this.crosshair = document.getElementById('crosshair');
+    this.sniperScope = document.getElementById('sniper-scope');
 
     // Screens
     this.startScreen = document.getElementById('start-screen');
     this.deathScreen = document.getElementById('death-screen');
     this.deathKills = document.getElementById('death-kills');
     this.restartBtn = document.getElementById('restart-btn');
+
+    // State
+    this.currentWeapon = 'PISTOL';
+    this.isAiming = false;
+
+    // Sniper scope system for breathing effect
+    this.sniperScopeSystem = new SniperScopeSystem();
 
     this.setupEventListeners();
   }
@@ -34,11 +43,33 @@ export class UISystem {
   }
 
   updateCrosshair(isAiming) {
-    if (isAiming) {
-      this.crosshair.classList.add('aiming');
+    this.isAiming = isAiming;
+
+    // Check if we should show sniper scope
+    const isSniperRifle = this.currentWeapon === 'SNIPER';
+
+    if (isSniperRifle && isAiming) {
+      // Show sniper scope, hide regular crosshair
+      this.sniperScope.classList.remove('hidden');
+      this.crosshair.classList.add('hidden');
+      this.sniperScopeSystem.setActive(true);
     } else {
-      this.crosshair.classList.remove('aiming');
+      // Hide sniper scope, show regular crosshair
+      this.sniperScope.classList.add('hidden');
+      this.crosshair.classList.remove('hidden');
+      this.sniperScopeSystem.setActive(false);
+
+      // Update regular crosshair aiming state
+      if (isAiming) {
+        this.crosshair.classList.add('aiming');
+      } else {
+        this.crosshair.classList.remove('aiming');
+      }
     }
+  }
+
+  update(deltaTime) {
+    this.sniperScopeSystem.update(deltaTime);
   }
 
   updateHealth(health) {
@@ -52,8 +83,15 @@ export class UISystem {
   }
 
   updateWeapon(data) {
-    this.weaponName.textContent = data.name.toUpperCase();
+    this.currentWeapon = data.name.toUpperCase();
+    this.weaponName.textContent = this.currentWeapon;
     this.updateAmmo({ current: data.ammo, reserve: data.reserve });
+
+    // Hide scope when switching away from sniper
+    if (this.currentWeapon !== 'SNIPER') {
+      this.sniperScope.classList.add('hidden');
+      this.crosshair.classList.remove('hidden');
+    }
   }
 
   updateKills(kills) {

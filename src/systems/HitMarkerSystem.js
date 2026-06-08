@@ -12,9 +12,15 @@ export class HitMarkerSystem {
     document.body.appendChild(this.container);
   }
 
-  showHitMarker(isKill = false) {
+  showHitMarker(isKill = false, isHeadshot = false) {
     const marker = document.createElement('div');
-    marker.className = isKill ? 'hitmarker kill' : 'hitmarker';
+
+    // Determine marker class based on type
+    let markerClass = 'hitmarker';
+    if (isKill) markerClass += ' kill';
+    if (isHeadshot) markerClass += ' headshot';
+
+    marker.className = markerClass;
     marker.innerHTML = `
       <div class="hitmarker-line hitmarker-line-1"></div>
       <div class="hitmarker-line hitmarker-line-2"></div>

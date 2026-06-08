@@ -27,8 +27,8 @@ export class Enemy {
     // Enemy body (simple humanoid shape)
     this.mesh = new THREE.Group();
 
-    // Body
-    const bodyGeometry = new THREE.BoxGeometry(0.6, 1.8, 0.4);
+    // Body - increased hitbox size
+    const bodyGeometry = new THREE.BoxGeometry(0.8, 1.8, 0.6);
     const bodyMaterial = new THREE.MeshStandardMaterial({
       color: 0x8B00FF,
       emissive: 0x8B00FF,
@@ -39,11 +39,12 @@ export class Enemy {
     body.castShadow = true;
     this.mesh.add(body);
 
-    // Head
-    const headGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+    // Head - increased hitbox size
+    const headGeometry = new THREE.SphereGeometry(0.4, 8, 8);
     const head = new THREE.Mesh(headGeometry, bodyMaterial);
     head.position.y = 2.1;
     head.castShadow = true;
+    head.userData.isHead = true; // Mark as head for headshot detection
     this.mesh.add(head);
 
     // Eyes (glowing)
@@ -52,10 +53,12 @@ export class Enemy {
 
     const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
     leftEye.position.set(-0.1, 2.1, 0.25);
+    leftEye.userData.isHead = true; // Eyes count as headshots
     this.mesh.add(leftEye);
 
     const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
     rightEye.position.set(0.1, 2.1, 0.25);
+    rightEye.userData.isHead = true; // Eyes count as headshots
     this.mesh.add(rightEye);
 
     // Set mesh position
@@ -65,6 +68,8 @@ export class Enemy {
     this.mesh.userData.enemy = this;
     body.userData.enemy = this;
     head.userData.enemy = this;
+    leftEye.userData.enemy = this;
+    rightEye.userData.enemy = this;
 
     this.scene.add(this.mesh);
   }

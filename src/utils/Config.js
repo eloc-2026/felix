@@ -28,6 +28,6 @@ export const Config = {
   ENEMY_FIRE_RATE: 1000, // ms between shots
 
   // World
-  WORLD_SIZE: 100,
-  BUILDING_COUNT: 20
+  WORLD_SIZE: 150,
+  BUILDING_COUNT: 60
 };
